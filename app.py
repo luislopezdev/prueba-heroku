@@ -63,6 +63,7 @@ MERCHANTS = [
 ]
 
 def generate_signature(query_string):
+    print(f"[DEBUG] Generando firma para query_string: {query_string}")
     return hmac.new(
         SECRET_KEY.encode('utf-8'),
         query_string.encode('utf-8'),
@@ -77,99 +78,139 @@ def get_headers():
 
 def obtener_detalles_usuario(merchant_no):
     try:
+        print(f"[INFO] Obteniendo detalles para merchant: {merchant_no}")
         timestamp = int(time.time() * 1000)
         query_string = f"timestamp={timestamp}&merchantNo={merchant_no}"
         signature = generate_signature(query_string)
         query_string += f"&signature={signature}"
-        response = requests.get(f"{BASE_URL}{ENDPOINT_AD_DETAILS}?{query_string}", headers=get_headers(), timeout=10)
+        
+        url = f"{BASE_URL}{ENDPOINT_AD_DETAILS}?{query_string}"
+        print(f"[DEBUG] Realizando petición a: {url}")
+        
+        response = requests.get(url, headers=get_headers(), timeout=10)
+        print(f"[DEBUG] Respuesta recibida: {response.status_code}")
+        
         data = response.json()
+        print(f"[DEBUG] Datos recibidos: {json.dumps(data, indent=2)}")
 
         if not data.get("success", False):
+            print(f"[ERROR] Error en respuesta del servidor para merchant {merchant_no}: {data}")
             return {"error": "Error en respuesta del servidor"}
 
         merchant = data["data"]["merchant"]
         stats = merchant["userStatsResp"]
 
-        return {
+        resultado = {
             "nick": merchant.get("nickName", "Desconocido"),
             "compras": int(stats["completedBuyOrderNumOfLatest30day"]),
             "ventas": int(stats["completedSellOrderNumOfLatest30day"]),
             "btc_compras": float(stats["completedBuyOrderTotalBtcAmount"]),
             "btc_ventas": float(stats["completedSellOrderTotalBtcAmount"])
         }
-    except requests.exceptions.RequestException:
+        print(f"[INFO] Detalles obtenidos exitosamente para {resultado['nick']}: {json.dumps(resultado, indent=2)}")
+        return resultado
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Error de conexión para merchant {merchant_no}: {str(e)}")
         return {"error": "Sin conexión a internet"}
     except Exception as e:
+        print(f"[ERROR] Error inesperado para merchant {merchant_no}: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
         return {"error": f"Error inesperado: {str(e)}"}
 
 def obtener_precio_btc_usdt():
     try:
+        print("[DEBUG] Obteniendo precio actual de BTC/USDT")
         url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
         response = requests.get(url, timeout=10)
         data = response.json()
-        return float(data["price"])
-    except:
+        precio = float(data["price"])
+        print(f"[INFO] Precio BTC/USDT actualizado: {precio}")
+        return precio
+    except Exception as e:
+        print(f"[ERROR] Error al obtener precio BTC/USDT: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
         return 0.0
 
 def actualizar_datos():
     global estado_global, precio_btc_actual
+    print("[INFO] Iniciando ciclo de actualización de datos")
     while True:
-        precio_btc_actual = obtener_precio_btc_usdt()
-        for merchant in MERCHANTS:
-            detalles = obtener_detalles_usuario(merchant)
-            if "error" not in detalles:
-                if merchant not in estado_global:
-                    estado_global[merchant] = {
-                        "nick": detalles["nick"],
-                        "compras_base": detalles["compras"],
-                        "ventas_base": detalles["ventas"],
-                        "btc_compra_base": detalles["btc_compras"],
-                        "btc_venta_base": detalles["btc_ventas"],
-                        "compras_total": 0,
-                        "ventas_total": 0,
-                        "hora_ultima_compra": "--:--",
-                        "hora_ultima_venta": "--:--",
-                        "btc_ultima_compra": 0.0,
-                        "btc_ultima_venta": 0.0,
-                        "usdt_acumulado_compra": 0.0,
-                        "usdt_acumulado_venta": 0.0
-                    }
-                
-                estado = estado_global[merchant]
-                comp_act = detalles["compras"]
-                vent_act = detalles["ventas"]
-                btc_comp = detalles["btc_compras"]
-                btc_vent = detalles["btc_ventas"]
+        try:
+            precio_btc_actual = obtener_precio_btc_usdt()
+            print(f"[DEBUG] Procesando {len(MERCHANTS)} merchants con precio BTC: {precio_btc_actual}")
+            
+            for merchant in MERCHANTS:
+                detalles = obtener_detalles_usuario(merchant)
+                if "error" not in detalles:
+                    if merchant not in estado_global:
+                        print(f"[INFO] Inicializando estado para nuevo merchant: {detalles['nick']}")
+                        estado_global[merchant] = {
+                            "nick": detalles["nick"],
+                            "compras_base": detalles["compras"],
+                            "ventas_base": detalles["ventas"],
+                            "btc_compra_base": detalles["btc_compras"],
+                            "btc_venta_base": detalles["btc_ventas"],
+                            "compras_total": 0,
+                            "ventas_total": 0,
+                            "hora_ultima_compra": "--:--",
+                            "hora_ultima_venta": "--:--",
+                            "btc_ultima_compra": 0.0,
+                            "btc_ultima_venta": 0.0,
+                            "usdt_acumulado_compra": 0.0,
+                            "usdt_acumulado_venta": 0.0
+                        }
+                    
+                    estado = estado_global[merchant]
+                    comp_act = detalles["compras"]
+                    vent_act = detalles["ventas"]
+                    btc_comp = detalles["btc_compras"]
+                    btc_vent = detalles["btc_ventas"]
 
-                diff_c = comp_act - estado["compras_base"]
-                diff_v = vent_act - estado["ventas_base"]
+                    diff_c = comp_act - estado["compras_base"]
+                    diff_v = vent_act - estado["ventas_base"]
 
-                if diff_c > estado["compras_total"]:
-                    delta_btc = round(btc_comp - estado["btc_compra_base"], 6)
-                    delta_usdt = delta_btc * precio_btc_actual
-                    estado["compras_total"] += (diff_c - estado["compras_total"])
-                    estado["hora_ultima_compra"] = datetime.now().strftime("%H:%M")
-                    estado["btc_ultima_compra"] = delta_btc
-                    estado["btc_compra_base"] = btc_comp
-                    estado["usdt_acumulado_compra"] += delta_usdt
+                    if diff_c > estado["compras_total"]:
+                        delta_btc = round(btc_comp - estado["btc_compra_base"], 6)
+                        delta_usdt = delta_btc * precio_btc_actual
+                        print(f"[INFO] Nueva compra detectada para {estado['nick']}: {delta_btc} BTC ({delta_usdt} USDT)")
+                        estado["compras_total"] += (diff_c - estado["compras_total"])
+                        estado["hora_ultima_compra"] = datetime.now().strftime("%H:%M")
+                        estado["btc_ultima_compra"] = delta_btc
+                        estado["btc_compra_base"] = btc_comp
+                        estado["usdt_acumulado_compra"] += delta_usdt
 
-                if diff_v > estado["ventas_total"]:
-                    delta_btc = round(btc_vent - estado["btc_venta_base"], 6)
-                    delta_usdt = delta_btc * precio_btc_actual
-                    estado["ventas_total"] += (diff_v - estado["ventas_total"])
-                    estado["hora_ultima_venta"] = datetime.now().strftime("%H:%M")
-                    estado["btc_ultima_venta"] = delta_btc
-                    estado["btc_venta_base"] = btc_vent
-                    estado["usdt_acumulado_venta"] += delta_usdt
+                    if diff_v > estado["ventas_total"]:
+                        delta_btc = round(btc_vent - estado["btc_venta_base"], 6)
+                        delta_usdt = delta_btc * precio_btc_actual
+                        print(f"[INFO] Nueva venta detectada para {estado['nick']}: {delta_btc} BTC ({delta_usdt} USDT)")
+                        estado["ventas_total"] += (diff_v - estado["ventas_total"])
+                        estado["hora_ultima_venta"] = datetime.now().strftime("%H:%M")
+                        estado["btc_ultima_venta"] = delta_btc
+                        estado["btc_venta_base"] = btc_vent
+                        estado["usdt_acumulado_venta"] += delta_usdt
+                else:
+                    print(f"[ERROR] Error al procesar merchant {merchant}: {detalles['error']}")
 
-        time.sleep(30)
+            print("[DEBUG] Ciclo de actualización completado, esperando 30 segundos...")
+            time.sleep(30)
+            
+        except Exception as e:
+            print(f"[ERROR] Error en ciclo de actualización: {str(e)}")
+            import traceback
+            print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+            time.sleep(30)  # Esperar antes de reintentar
 
 @app.route('/')
 def index():
+    print("[DEBUG] Acceso a la página principal")
     return render_template('index.html')
 
 @app.route('/api/datos')
 def get_datos():
+    print("[DEBUG] Solicitud de datos recibida")
     return jsonify({
         'estado': estado_global,
         'precio_btc': precio_btc_actual,
@@ -178,8 +219,11 @@ def get_datos():
     })
 
 if __name__ == '__main__':
+    print("[INFO] Iniciando aplicación...")
     thread = Thread(target=actualizar_datos, daemon=True)
     thread.start()
+    print("[INFO] Thread de actualización iniciado")
 
     port = int(os.environ.get('PORT', 5000))
+    print(f"[INFO] Servidor iniciando en puerto {port}")
     app.run(host='0.0.0.0', port=port)
