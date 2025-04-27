@@ -1,0 +1,178 @@
+/* Estilos generales */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Estilos para las tablas */
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #374151;
+    border-bottom: 2px solid #4B5563;
+}
+
+tr {
+    border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+}
+
+td {
+    padding: 0.25rem 0.35rem;
+    line-height: 1.2;
+    font-size: 0.875rem;
+}
+
+/* Estilos para las filas de la tabla */
+.table-row-hover:hover {
+    background-color: #4B5563;
+    transition: background-color 0.2s ease;
+}
+
+/* Estilos para los valores positivos y negativos */
+.valor-positivo {
+    color: #34D399;
+}
+
+.valor-negativo {
+    color: #EF4444;
+}
+
+/* Estilos para el scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1F2937;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4B5563;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6B7280;
+}
+
+/* Estilos para el header */
+header {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos para las celdas de la tabla */
+td, th {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Estilos para los contenedores de las tablas */
+.overflow-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #4B5563 #1F2937;
+}
+
+/* Estilos para mejorar la legibilidad de los números */
+td[class*="text-center"] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+}
+
+/* Estilos para los totales */
+#total-compras, #total-ventas {
+    font-weight: 600;
+}
+
+/* Estilos para los máximos */
+#max-comprador, #max-vendedor {
+    font-weight: 600;
+}
+
+/* Estilos para el precio de BTC */
+#precio-btc {
+    font-weight: 600;
+}
+
+/* Animación para resaltar cambios */
+@keyframes highlight {
+    0% {
+        background-color: rgba(52, 211, 153, 0.2);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.highlight {
+    animation: highlight 2s ease-out;
+}
+
+/* Hacer el header de la tabla sticky */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #374151;
+}
+
+th {
+    font-weight: 600;
+    padding: 0.25rem 0.35rem;
+    font-size: 0.875rem;
+}
+
+/* Contenedores de tablas */
+.w-1/2 {
+    height: calc(100vh - 5rem);
+    min-height: 300px;
+}
+
+/* Ajustes para pantallas más pequeñas */
+@media (max-width: 1600px) {
+    td, th {
+        padding: 0.2rem 0.3rem;
+        font-size: 0.8125rem;
+    }
+}
+
+/* Ajustes para pantallas muy pequeñas */
+@media (max-width: 1280px) {
+    .flex.gap-2 {
+        flex-direction: column;
+    }
+    
+    .w-1/2 {
+        width: 100%;
+        height: calc(50vh - 3rem);
+        min-height: 200px;
+    }
+    
+    td, th {
+        padding: 0.15rem 0.25rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Altura de las tablas */
+.flex-1.overflow-auto {
+    height: calc(50vh - 4rem);
+    min-height: 200px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    table {
+        font-size: 0.875rem;
+    }
+} 
