@@ -5,7 +5,7 @@ import hmac
 import hashlib
 import time
 import os
-from threading import Thread
+from threading import Thread, Lock
 import json
 import traceback # Para imprimir tracebacks en excepciones
 
@@ -15,7 +15,7 @@ app = Flask(__name__)
 # ¡¡¡ADVERTENCIA DE SEGURIDAD!!!
 # NO es recomendable tener claves secretas directamente en el código.
 # Considera usar variables de entorno.
-app.config['SECRET_KEY'] = 'your-secret-key-here-CHANGE-ME' # Cambia esto por una clave segura y única
+app.config['SECRET_KEY'] = '123456789qwerty' # Cambia esto por una clave segura y única
 
 # Configuración de Binance
 BASE_URL = "https://api.binance.com"
@@ -33,6 +33,8 @@ if not API_KEY or not SECRET_KEY:
 # Estado global para almacenar datos
 estado_global = {}
 precio_btc_actual = 0.0
+estado_lock = Lock()  # Lock para proteger el acceso al estado global
+thread_activo = False  # Flag para controlar el estado del thread
 
 MERCHANTS = [
     "sf50ee1a424f832dfad73f9db737dccfc",   # Bachat4King
@@ -83,9 +85,11 @@ def obtener_detalles_usuario(merchant_no):
         print(f"[DEBUG] URL completa: {url}")
         
         print("[DEBUG] Realizando petición HTTP...")
+        print(f"[DEBUG] Headers enviados: {get_headers()}")
         response = requests.get(url, headers=get_headers(), timeout=10)
         print(f"[DEBUG] Código de respuesta: {response.status_code}")
         print(f"[DEBUG] Headers de respuesta: {dict(response.headers)}")
+        print(f"[DEBUG] Contenido de respuesta: {response.text[:500]}...")  # Primeros 500 caracteres
         
         data = response.json()
         print(f"[DEBUG] Datos recibidos: {json.dumps(data, indent=2)}")
@@ -134,6 +138,8 @@ def obtener_precio_btc_usdt():
         print("[DEBUG] Realizando petición HTTP...")
         response = requests.get(url, timeout=10)
         print(f"[DEBUG] Código de respuesta: {response.status_code}")
+        print(f"[DEBUG] Headers de respuesta: {dict(response.headers)}")
+        print(f"[DEBUG] Contenido de respuesta: {response.text}")
         
         data = response.json()
         print(f"[DEBUG] Datos recibidos: {json.dumps(data, indent=2)}")
@@ -152,95 +158,111 @@ def obtener_precio_btc_usdt():
         return 0.0
 
 def actualizar_datos():
-    global estado_global, precio_btc_actual
+    global estado_global, precio_btc_actual, thread_activo
     print("\n[INFO] Iniciando ciclo de actualización de datos")
     ciclo = 1
+    thread_activo = True
     
-    while True:
+    while thread_activo:
         try:
             print(f"\n[INFO] {'='*50}")
             print(f"[INFO] Inicio del ciclo #{ciclo}")
             print(f"[INFO] {'='*50}")
             
-            precio_btc_actual = obtener_precio_btc_usdt()
+            print("[DEBUG] Intentando obtener precio BTC/USDT...")
+            nuevo_precio = obtener_precio_btc_usdt()
+            print(f"[DEBUG] Nuevo precio obtenido: {nuevo_precio}")
+            
+            with estado_lock:
+                precio_btc_actual = nuevo_precio
+                print(f"[DEBUG] Precio actualizado en estado global: {precio_btc_actual}")
+            
             print(f"[DEBUG] Procesando {len(MERCHANTS)} merchants con precio BTC: {precio_btc_actual}")
             
             for i, merchant in enumerate(MERCHANTS, 1):
                 print(f"\n[INFO] Procesando merchant {i}/{len(MERCHANTS)}: {merchant}")
+                print("[DEBUG] Intentando obtener detalles del merchant...")
                 detalles = obtener_detalles_usuario(merchant)
                 
                 if "error" not in detalles:
-                    if merchant not in estado_global:
-                        print(f"[INFO] Inicializando estado para nuevo merchant: {detalles['nick']}")
-                        estado_global[merchant] = {
-                            "nick": detalles["nick"],
-                            "compras_base": detalles["compras"],
-                            "ventas_base": detalles["ventas"],
-                            "btc_compra_base": detalles["btc_compras"],
-                            "btc_venta_base": detalles["btc_ventas"],
-                            "compras_total": 0,
-                            "ventas_total": 0,
-                            "hora_ultima_compra": "--:--",
-                            "hora_ultima_venta": "--:--",
-                            "btc_ultima_compra": 0.0,
-                            "btc_ultima_venta": 0.0,
-                            "usdt_acumulado_compra": 0.0,
-                            "usdt_acumulado_venta": 0.0
-                        }
-                        print(f"[DEBUG] Estado inicial: {json.dumps(estado_global[merchant], indent=2)}")
-                    
-                    estado = estado_global[merchant]
-                    comp_act = detalles["compras"]
-                    vent_act = detalles["ventas"]
-                    btc_comp = detalles["btc_compras"]
-                    btc_vent = detalles["btc_ventas"]
-
-                    print(f"[DEBUG] Valores actuales para {estado['nick']}:")
-                    print(f"  - Compras: {comp_act} (base: {estado['compras_base']})")
-                    print(f"  - Ventas: {vent_act} (base: {estado['ventas_base']})")
-                    print(f"  - BTC compras: {btc_comp} (base: {estado['btc_compra_base']})")
-                    print(f"  - BTC ventas: {btc_vent} (base: {estado['btc_venta_base']})")
-
-                    diff_c = comp_act - estado["compras_base"]
-                    diff_v = vent_act - estado["ventas_base"]
-
-                    print(f"[DEBUG] Diferencias detectadas:")
-                    print(f"  - Compras: {diff_c}")
-                    print(f"  - Ventas: {diff_v}")
-
-                    if diff_c > estado["compras_total"]:
-                        delta_btc = round(btc_comp - estado["btc_compra_base"], 6)
-                        delta_usdt = delta_btc * precio_btc_actual
-                        print(f"[INFO] Nueva compra detectada para {estado['nick']}:")
-                        print(f"  - Delta BTC: {delta_btc}")
-                        print(f"  - Delta USDT: {delta_usdt}")
+                    print("[DEBUG] Detalles obtenidos exitosamente")
+                    with estado_lock:
+                        if merchant not in estado_global:
+                            print(f"[INFO] Inicializando estado para nuevo merchant: {detalles['nick']}")
+                            estado_global[merchant] = {
+                                "nick": detalles["nick"],
+                                "compras_base": detalles["compras"],
+                                "ventas_base": detalles["ventas"],
+                                "btc_compra_base": detalles["btc_compras"],
+                                "btc_venta_base": detalles["btc_ventas"],
+                                "compras_total": 0,
+                                "ventas_total": 0,
+                                "hora_ultima_compra": "--:--",
+                                "hora_ultima_venta": "--:--",
+                                "btc_ultima_compra": 0.0,
+                                "btc_ultima_venta": 0.0,
+                                "usdt_acumulado_compra": 0.0,
+                                "usdt_acumulado_venta": 0.0
+                            }
+                            print(f"[DEBUG] Estado inicial: {json.dumps(estado_global[merchant], indent=2)}")
                         
-                        estado["compras_total"] += (diff_c - estado["compras_total"])
-                        estado["hora_ultima_compra"] = datetime.now().strftime("%H:%M")
-                        estado["btc_ultima_compra"] = delta_btc
-                        estado["btc_compra_base"] = btc_comp
-                        estado["usdt_acumulado_compra"] += delta_usdt
-                        
-                        print(f"[DEBUG] Estado actualizado después de compra: {json.dumps(estado, indent=2)}")
+                        estado = estado_global[merchant]
+                        comp_act = detalles["compras"]
+                        vent_act = detalles["ventas"]
+                        btc_comp = detalles["btc_compras"]
+                        btc_vent = detalles["btc_ventas"]
 
-                    if diff_v > estado["ventas_total"]:
-                        delta_btc = round(btc_vent - estado["btc_venta_base"], 6)
-                        delta_usdt = delta_btc * precio_btc_actual
-                        print(f"[INFO] Nueva venta detectada para {estado['nick']}:")
-                        print(f"  - Delta BTC: {delta_btc}")
-                        print(f"  - Delta USDT: {delta_usdt}")
-                        
-                        estado["ventas_total"] += (diff_v - estado["ventas_total"])
-                        estado["hora_ultima_venta"] = datetime.now().strftime("%H:%M")
-                        estado["btc_ultima_venta"] = delta_btc
-                        estado["btc_venta_base"] = btc_vent
-                        estado["usdt_acumulado_venta"] += delta_usdt
-                        
-                        print(f"[DEBUG] Estado actualizado después de venta: {json.dumps(estado, indent=2)}")
+                        print(f"[DEBUG] Valores actuales para {estado['nick']}:")
+                        print(f"  - Compras: {comp_act} (base: {estado['compras_base']})")
+                        print(f"  - Ventas: {vent_act} (base: {estado['ventas_base']})")
+                        print(f"  - BTC compras: {btc_comp} (base: {estado['btc_compra_base']})")
+                        print(f"  - BTC ventas: {btc_vent} (base: {estado['btc_venta_base']})")
+
+                        diff_c = comp_act - estado["compras_base"]
+                        diff_v = vent_act - estado["ventas_base"]
+
+                        print(f"[DEBUG] Diferencias detectadas:")
+                        print(f"  - Compras: {diff_c}")
+                        print(f"  - Ventas: {diff_v}")
+
+                        if diff_c > estado["compras_total"]:
+                            delta_btc = round(btc_comp - estado["btc_compra_base"], 6)
+                            delta_usdt = delta_btc * precio_btc_actual
+                            print(f"[INFO] Nueva compra detectada para {estado['nick']}:")
+                            print(f"  - Delta BTC: {delta_btc}")
+                            print(f"  - Delta USDT: {delta_usdt}")
+                            
+                            estado["compras_total"] += (diff_c - estado["compras_total"])
+                            estado["hora_ultima_compra"] = datetime.now().strftime("%H:%M")
+                            estado["btc_ultima_compra"] = delta_btc
+                            estado["btc_compra_base"] = btc_comp
+                            estado["usdt_acumulado_compra"] += delta_usdt
+                            
+                            print(f"[DEBUG] Estado actualizado después de compra: {json.dumps(estado, indent=2)}")
+
+                        if diff_v > estado["ventas_total"]:
+                            delta_btc = round(btc_vent - estado["btc_venta_base"], 6)
+                            delta_usdt = delta_btc * precio_btc_actual
+                            print(f"[INFO] Nueva venta detectada para {estado['nick']}:")
+                            print(f"  - Delta BTC: {delta_btc}")
+                            print(f"  - Delta USDT: {delta_usdt}")
+                            
+                            estado["ventas_total"] += (diff_v - estado["ventas_total"])
+                            estado["hora_ultima_venta"] = datetime.now().strftime("%H:%M")
+                            estado["btc_ultima_venta"] = delta_btc
+                            estado["btc_venta_base"] = btc_vent
+                            estado["usdt_acumulado_venta"] += delta_usdt
+                            
+                            print(f"[DEBUG] Estado actualizado después de venta: {json.dumps(estado, indent=2)}")
                 else:
                     print(f"[ERROR] Error al procesar merchant {merchant}: {detalles['error']}")
 
             print(f"[INFO] Ciclo #{ciclo} completado")
+            print(f"[INFO] Estado actual del sistema:")
+            with estado_lock:
+                print(f"  - Precio BTC: {precio_btc_actual}")
+                print(f"  - Merchants activos: {len(estado_global)}")
+                print(f"  - Estado global: {json.dumps(estado_global, indent=2)}")
             print(f"[INFO] Esperando 30 segundos antes del siguiente ciclo...")
             ciclo += 1
             time.sleep(30)
@@ -262,12 +284,13 @@ def index():
 @app.route('/api/datos')
 def get_datos():
     print("[DEBUG] Solicitud de datos recibida")
-    datos = {
-        'estado': estado_global,
-        'precio_btc': precio_btc_actual,
-        'hora_actual': datetime.now().strftime("%H:%M"),
-        'fecha_actual': datetime.now().strftime("%d %B")
-    }
+    with estado_lock:
+        datos = {
+            'estado': estado_global,
+            'precio_btc': precio_btc_actual,
+            'hora_actual': datetime.now().strftime("%H:%M"),
+            'fecha_actual': datetime.now().strftime("%d %B")
+        }
     print(f"[DEBUG] Datos a enviar: {json.dumps(datos, indent=2)}")
     return jsonify(datos)
 
