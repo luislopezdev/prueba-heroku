@@ -1,11 +1,93 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volumenes p2p CL</title>
+    <title>Monitor P2P Binance</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
-<body>
-    <h1>hola xd</h1>
+<body class="bg-gray-900 text-white h-screen">
+    <div class="h-full flex flex-col p-2">
+        <header class="flex flex-col bg-gray-800 rounded-lg mb-2">
+            <div class="flex items-center justify-between py-2 px-3">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold">Monitor P2P Binance</h1>
+                    <span class="text-lg text-gray-400">👥 <span id="usuarios-monitoreados" class="font-medium">0</span> usuarios</span>
+                </div>
+                <div class="flex gap-6 text-lg">
+                    <p class="text-gray-400">📅 <span id="fecha-actual"></span></p>
+                    <p class="text-gray-400">⏰ <span id="hora-actual"></span></p>
+                    <p class="text-yellow-400">💰 BTC: $<span id="precio-btc"></span></p>
+                </div>
+            </div>
+            <div class="flex justify-between px-3 py-2 text-base border-t border-gray-700">
+                <div class="flex gap-6">
+                    <p class="text-green-400">📈 Mayor Comprador: <span id="max-comprador" class="font-medium"></span></p>
+                    <p class="text-green-400">💰 Monto: $<span id="max-compra" class="font-medium"></span></p>
+                </div>
+                <div class="flex gap-6">
+                    <p class="text-red-400">📉 Mayor Vendedor: <span id="max-vendedor" class="font-medium"></span></p>
+                    <p class="text-red-400">💰 Monto: $<span id="max-venta" class="font-medium"></span></p>
+                </div>
+            </div>
+            <div class="flex justify-between px-3 py-2 text-base border-t border-gray-700">
+                <div class="flex gap-6">
+                    <p class="text-green-400">💰 Volumen total Compras: $<span id="total-compras" class="font-medium"></span></p>
+                </div>
+                <div class="flex gap-6">
+                    <p class="text-red-400">💰 Volumen total Ventas: $<span id="total-ventas" class="font-medium"></span></p>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-hidden flex gap-2">
+            <!-- Primera tabla -->
+            <div class="w-1/2 overflow-auto">
+                <table class="w-full bg-gray-800">
+                    <thead class="bg-gray-700 sticky top-0">
+                        <tr class="text-base">
+                            <th class="p-2 w-[12%] text-left">👤 Nick</th>
+                            <th class="p-2 w-[7%]">📥 Ord.</th>
+                            <th class="p-2 w-[15%]">💰 Últ.Comp</th>
+                            <th class="p-2 w-[8%]">🕒 H.C</th>
+                            <th class="p-2 w-[12%]">💰 Acum.C</th>
+                            <th class="p-2 w-[7%]">📤 Ord.</th>
+                            <th class="p-2 w-[15%]">💰 Últ.Vent</th>
+                            <th class="p-2 w-[8%]">🕒 H.V</th>
+                            <th class="p-2 w-[12%]">💰 Acum.V</th>
+                        </tr>
+                    </thead>
+                    <tbody id="datos-tabla-1" class="text-base">
+                        <!-- Primera mitad de los datos -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Segunda tabla -->
+            <div class="w-1/2 overflow-auto">
+                <table class="w-full bg-gray-800">
+                    <thead class="bg-gray-700 sticky top-0">
+                        <tr class="text-base">
+                            <th class="p-2 w-[12%] text-left">👤 Nick</th>
+                            <th class="p-2 w-[7%]">📥 Ord.</th>
+                            <th class="p-2 w-[15%]">💰 Últ.Comp</th>
+                            <th class="p-2 w-[8%]">🕒 H.C</th>
+                            <th class="p-2 w-[12%]">💰 Acum.C</th>
+                            <th class="p-2 w-[7%]">📤 Ord.</th>
+                            <th class="p-2 w-[15%]">💰 Últ.Vent</th>
+                            <th class="p-2 w-[8%]">🕒 H.V</th>
+                            <th class="p-2 w-[12%]">💰 Acum.V</th>
+                        </tr>
+                    </thead>
+                    <tbody id="datos-tabla-2" class="text-base">
+                        <!-- Segunda mitad de los datos -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
-</html>
+</html> 
